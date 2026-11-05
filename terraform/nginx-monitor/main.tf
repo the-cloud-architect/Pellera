@@ -1,21 +1,33 @@
 terraform {
   required_version = "= 1.5.5"
+
+  required_providers {
+    http = {
+      source  = "hashicorp/http"
+      version = "= 3.4.5"
+    }
+  }
 }
 
+provider "http" {}
+
 variable "nginx_url" {
-  description = "Existing NGINX endpoint to monitor."
+  description = "NGINX endpoint to verify."
   type        = string
   default     = "http://10.4.2.56"
 }
 
-resource "terraform_data" "monitor_target" {
-  input = {
-    nginx_url = var.nginx_url
-    purpose   = "Pellera Terraform runtime validation"
+data "http" "nginx" {
+  url = var.nginx_url
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "NGINX did not return HTTP 200."
+    }
   }
 }
 
-output "monitor_target_url" {
-  description = "Target for the monitoring workflow."
-  value       = terraform_data.monitor_target.output.nginx_url
+output "nginx_status_code" {
+  value = data.http.nginx.status_code
 }
