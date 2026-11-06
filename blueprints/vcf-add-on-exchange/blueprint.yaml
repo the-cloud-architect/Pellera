@@ -1,6 +1,6 @@
 formatVersion: 2
 name: VCF Add-on Exchange
-version: "0.1.1"
+version: "0.1.2"
 inputs:
   supervisorNamespace:
     type: string
@@ -89,10 +89,98 @@ resources:
         stringData:
           cloud-config: |
             #cloud-config
-            packages:
-            - postgresql
-            - open-vm-tools
             write_files:
+            - path: /usr/local/sbin/configure-exchange-network
+              permissions: '0755'
+              content: |
+                #!/usr/bin/python3
+                """Apply the Supervisor-assigned IPv4 settings on the Ubuntu database VM."""
+
+                import base64
+                import gzip
+                from ipaddress import IPv4Address, IPv4Interface, ip_interface
+                from pathlib import Path
+                import subprocess
+
+                import yaml
+
+
+                def guestinfo(key):
+                    for command in (["vmware-rpctool"], ["vmtoolsd", "--cmd"]):
+                        try:
+                            result = subprocess.run(
+                                [*command, f"info-get guestinfo.{key}"],
+                                capture_output=True, check=True, text=True, timeout=10,
+                            )
+                        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                            continue
+                        if result.stdout.strip():
+                            return result.stdout.strip()
+                    return ""
+
+
+                def assigned_ipv4(network, links):
+                    for ethernet in network.get("ethernets", {}).values():
+                        mac = ethernet.get("match", {}).get("macaddress", "").lower()
+                        if mac not in links:
+                            continue
+                        addresses = [ip_interface(value) for value in ethernet.get("addresses", [])]
+                        addresses = [str(value) for value in addresses if isinstance(value, IPv4Interface)]
+                        if not addresses:
+                            continue
+                        gateway = ethernet.get("gateway4")
+                        if not gateway:
+                            gateway = next(
+                                (route["via"] for route in ethernet.get("routes", [])
+                                 if route["to"] in ("default", "0.0.0.0/0") and ":" not in route["via"]),
+                                None,
+                            )
+                        if not gateway:
+                            raise RuntimeError("Assigned VM network has no IPv4 default gateway")
+                        dns = ethernet.get("nameservers", {}).get("addresses", [])
+                        return links[mac], ",".join(addresses), str(IPv4Address(gateway)), ",".join(dns)
+                    raise RuntimeError("No assigned IPv4 configuration matches a guest interface MAC")
+
+
+                def apply_network():
+                    payload = guestinfo("metadata").encode()
+                    if not payload:
+                        raise RuntimeError("VMware GuestInfo metadata is unavailable")
+                    encoding = guestinfo("metadata.encoding")
+                    if encoding in ("base64", "gzip+base64"):
+                        payload = base64.b64decode(payload)
+                    if encoding == "gzip+base64":
+                        payload = gzip.decompress(payload)
+                    metadata = yaml.safe_load(payload)
+                    links = {
+                        (link / "address").read_text().strip().lower(): link.name
+                        for link in Path("/sys/class/net").iterdir()
+                        if link.name != "lo"
+                    }
+                    device, addresses, gateway, dns = assigned_ipv4(metadata.get("network", {}), links)
+                    profile = "exchange-db-supervisor"
+                    settings = [
+                        "connection.interface-name", device,
+                        "connection.autoconnect", "yes",
+                        "connection.autoconnect-priority", "100",
+                        "ipv4.method", "manual",
+                        "ipv4.addresses", addresses,
+                        "ipv4.gateway", gateway,
+                        "ipv4.dns", dns,
+                    ]
+                    profiles = subprocess.check_output(["nmcli", "-g", "NAME", "connection", "show"], text=True)
+                    if profile in profiles.splitlines():
+                        subprocess.run(["nmcli", "connection", "modify", profile, *settings], check=True)
+                    else:
+                        subprocess.run(
+                            ["nmcli", "connection", "add", "type", "ethernet", "con-name", profile, *settings],
+                            check=True,
+                        )
+                    subprocess.run(["nmcli", "--wait", "30", "connection", "up", profile], check=True)
+
+
+                if __name__ == "__main__":
+                    apply_network()
             - path: /root/bootstrap-exchange.sh
               permissions: '0700'
               content: |
@@ -117,10 +205,15 @@ resources:
                 );
                 SQL
             runcmd:
-            - - /root/bootstrap-exchange.sh
-            - - rm
-              - -f
-              - /root/bootstrap-exchange.sh
+            - - /bin/sh
+              - -ec
+              - |-
+                /usr/local/sbin/configure-exchange-network
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get -o Acquire::Retries=3 update
+                apt-get -o Acquire::Retries=3 install -y postgresql
+                /root/bootstrap-exchange.sh
+                rm -f /root/bootstrap-exchange.sh
   dbCredentials:
     type: CCI.Supervisor.Resource
     properties:
@@ -157,26 +250,10 @@ resources:
         conditions:
         - type: VirtualMachineCreated
           status: 'True'
+        - type: VirtualMachineGuestNetworkConfigSynced
+          status: 'True'
     dependsOn:
     - bootstrap
-  databaseService:
-    type: CCI.Supervisor.Resource
-    properties:
-      context: ${resource.devNamespace.id}
-      manifest:
-        apiVersion: vmoperator.vmware.com/v1alpha3
-        kind: VirtualMachineService
-        metadata:
-          name: exchange-db-${env.shortDeploymentId}
-        spec:
-          type: ClusterIP
-          selector:
-            app.kubernetes.io/instance: exchange-db-${env.shortDeploymentId}
-          ports:
-          - name: postgres
-            protocol: TCP
-            port: 5432
-            targetPort: 5432
   apiFiles:
     type: CCI.Supervisor.Resource
     properties:
@@ -416,6 +493,8 @@ resources:
           name: exchange-api-${env.shortDeploymentId}
         spec:
           replicas: 1
+          strategy:
+            type: Recreate
           selector:
             matchLabels:
               app.kubernetes.io/instance: exchange-api-${env.shortDeploymentId}
@@ -449,7 +528,7 @@ resources:
                 - name: PYTHONPATH
                   value: /deps
                 - name: DB_HOST
-                  value: exchange-db-${env.shortDeploymentId}
+                  value: ${resource.database.object.status.network.primaryIP4}
                 - name: DB_PASSWORD
                   valueFrom:
                     secretKeyRef:
@@ -491,7 +570,6 @@ resources:
     dependsOn:
     - apiFiles
     - database
-    - databaseService
     - dbCredentials
   apiService:
     type: CCI.Supervisor.Resource
