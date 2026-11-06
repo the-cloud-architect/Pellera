@@ -1,6 +1,6 @@
 formatVersion: 2
 name: VCF Add-on Exchange
-version: "0.1.0"
+version: "0.1.1"
 inputs:
   supervisorNamespace:
     type: string
@@ -173,7 +173,8 @@ resources:
           selector:
             app.kubernetes.io/instance: exchange-db-${env.shortDeploymentId}
           ports:
-          - protocol: TCP
+          - name: postgres
+            protocol: TCP
             port: 5432
             targetPort: 5432
   apiFiles:
