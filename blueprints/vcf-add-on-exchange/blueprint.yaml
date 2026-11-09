@@ -1,10 +1,11 @@
 formatVersion: 2
 name: VCF Add-on Exchange
-version: "0.1.2"
+version: "0.1.3"
 inputs:
   supervisorNamespace:
     type: string
     title: Existing Supervisor namespace
+    $data: /data/namespaces?projectId={{project}}
   webCpu:
     type: string
     title: Storefront CPU
@@ -40,11 +41,7 @@ inputs:
   databaseSize:
     type: string
     title: PostgreSQL VM size
-    default: best-effort-small
-    enum:
-    - best-effort-xsmall
-    - best-effort-small
-    - best-effort-medium
+    $data: /data/virtualmachineclasses?namespace={{supervisorNamespace}}
   dbImage:
     type: string
     title: Ubuntu cloud image ID
@@ -52,6 +49,7 @@ inputs:
   dbStorageClass:
     type: string
     title: PostgreSQL storage class
+    $data: /data/storageclasses?namespace={{supervisorNamespace}}
   dbPassword:
     type: string
     title: PostgreSQL password
@@ -59,6 +57,7 @@ inputs:
     minLength: 32
     maxLength: 64
     pattern: ^[A-Za-z0-9_-]{32,64}$
+    description: Use the generated password when available, or enter 32–64 letters, digits, hyphens, or underscores.
   dbClientCidr:
     type: string
     title: Checkout pod source IPv4 CIDR
