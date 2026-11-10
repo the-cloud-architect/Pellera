@@ -13,6 +13,9 @@ deploying. Use a project-scoped release to make it available in the catalog.
 | Checkout API IPv4 subnet | IPv4 CIDR that contains the API VM address used to reach PostgreSQL |
 | PostgreSQL password | Fresh value with 32–64 ASCII letters, digits, hyphens, or underscores |
 
+The [PostgreSQL password generator](../../../orchestrator/actions/generatePostgresPassword.py)
+can supply the password through an Orchestrator action in the catalog form.
+
 Each deployment needs three free DHCP addresses. If it stalls during VM
 creation, check the last resource in deployment history and check its guest
 IPv4 address in vCenter. In NSX, inspect the target subnet's IPAM Statistics

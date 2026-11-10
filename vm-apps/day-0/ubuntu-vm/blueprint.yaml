@@ -1,0 +1,44 @@
+formatVersion: 1
+inputs:
+  ubuntuImage:
+    type: string
+    title: Ubuntu OVF image mapping
+  network:
+    type: string
+    title: Network
+    description: Select a VM network available to your project.
+    default: network:development
+    oneOf:
+      - title: Development
+        const: network:development
+      - title: Application
+        const: network:application
+      - title: Shared services
+        const: network:shared-services
+  size:
+    type: string
+    title: Size
+    default: small
+    oneOf:
+      - title: Small (2 vCPU, 4 GB RAM)
+        const: small
+      - title: Medium (4 vCPU, 8 GB RAM)
+        const: medium
+      - title: Large (8 vCPU, 16 GB RAM)
+        const: large
+resources:
+  Network:
+    type: Cloud.vSphere.Network
+    properties:
+      networkType: existing
+      constraints:
+        - tag: ${input.network}
+  Ubuntu:
+    type: Cloud.vSphere.Machine
+    properties:
+      image: ${input.ubuntuImage}
+      cpuCount: '${input.size == "large" ? 8 : (input.size == "medium" ? 4 : 2)}'
+      totalMemoryMB: '${input.size == "large" ? 16384 : (input.size == "medium" ? 8192 : 4096)}'
+      networks:
+        - network: ${resource.Network.id}
+          assignment: dynamic

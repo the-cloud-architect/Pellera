@@ -1,0 +1,17 @@
+formatVersion: 1
+inputs:
+  nginxUrl:
+    type: string
+    title: NGINX endpoint URL
+    description: HTTP or HTTPS URL that the Terraform runtime can reach.
+resources:
+  NGINXCheck:
+    type: Cloud.Terraform.Configuration
+    properties:
+      terraformVersion: 1.5.5
+      configurationSource:
+        repositoryId: REPLACE_WITH_VCFA_REPOSITORY_ID
+        commitId: REPLACE_WITH_GIT_COMMIT_SHA
+        sourceDirectory: terraform/nginx-monitor
+      variables:
+        nginx_url: ${input.nginxUrl}

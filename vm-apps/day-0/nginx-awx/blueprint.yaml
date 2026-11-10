@@ -1,0 +1,46 @@
+formatVersion: 1
+inputs:
+  ubuntuImage:
+    type: string
+    title: Ubuntu OVF image mapping
+  computeTag:
+    type: string
+    title: Compute placement tag
+  networkTag:
+    type: string
+    title: DHCP network tag
+  awxIntegration:
+    type: string
+    title: AWX integration name
+  awxJobTemplate:
+    type: string
+    title: AWX job template name
+    default: Install NGINX
+resources:
+  Ubuntu:
+    type: Cloud.vSphere.Machine
+    properties:
+      image: ${input.ubuntuImage}
+      cpuCount: 2
+      totalMemoryMB: 4096
+      constraints:
+        - tag: ${input.computeTag}
+      networks:
+        - network: ${resource.Network.id}
+          assignment: dynamic
+  Network:
+    type: Cloud.vSphere.Network
+    properties:
+      networkType: existing
+      constraints:
+        - tag: ${input.networkTag}
+  ConfigureNGINX:
+    type: Cloud.Ansible.Tower
+    properties:
+      account: ${input.awxIntegration}
+      host: ${resource.Ubuntu.*}
+      hostName: ${resource.Ubuntu.address}
+      templates:
+        provision:
+          - name: ${input.awxJobTemplate}
+            type: job
