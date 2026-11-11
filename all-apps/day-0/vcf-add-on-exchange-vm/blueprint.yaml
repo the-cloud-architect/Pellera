@@ -214,7 +214,7 @@ resources:
               rawCloudConfig:
                 name: exchange-vm-db-bootstrap-${env.shortDeploymentId}
                 key: cloud-config
-      wait: &id001
+      wait:
         conditions:
         - type: VirtualMachineCreated
           status: 'True'
@@ -485,7 +485,12 @@ resources:
               rawCloudConfig:
                 name: exchange-vm-api-bootstrap-${env.shortDeploymentId}
                 key: cloud-config
-      wait: *id001
+      wait:
+        conditions:
+        - type: VirtualMachineCreated
+          status: 'True'
+        - type: VirtualMachineGuestNetworkConfigSynced
+          status: 'True'
     dependsOn:
     - apiBootstrap
   webBootstrap:
@@ -755,7 +760,12 @@ resources:
               rawCloudConfig:
                 name: exchange-vm-web-bootstrap-${env.shortDeploymentId}
                 key: cloud-config
-      wait: *id001
+      wait:
+        conditions:
+        - type: VirtualMachineCreated
+          status: 'True'
+        - type: VirtualMachineGuestNetworkConfigSynced
+          status: 'True'
     dependsOn:
     - webBootstrap
   storefrontService:
