@@ -1,6 +1,6 @@
 formatVersion: 2
 name: VCF Add-on Exchange - VM Edition
-version: 0.1.0
+version: "0.1.1"
 description: Deploy the Exchange storefront, checkout API, and PostgreSQL on three Ubuntu VMs.
 inputs:
   supervisorNamespace:
@@ -433,6 +433,7 @@ resources:
                 User=exchange-api
                 Group=exchange-api
                 WorkingDirectory=/opt/exchange-api
+                Environment=HOME=/nonexistent
                 EnvironmentFile=/etc/exchange-api.env
                 ExecStart=/opt/exchange-api/venv/bin/python /opt/exchange-api/api.py
                 Restart=on-failure
