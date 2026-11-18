@@ -204,6 +204,8 @@ resources:
           name: exchange-vm-db-${env.shortDeploymentId}
           labels:
             app.kubernetes.io/instance: exchange-vm-db-${env.shortDeploymentId}
+            pellera.io/database-engine: postgresql
+            pellera.io/discovery: enabled
         spec:
           className: ${input.databaseSize}
           imageName: ${input.vmImage}

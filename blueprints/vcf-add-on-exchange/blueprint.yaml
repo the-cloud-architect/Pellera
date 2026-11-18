@@ -235,6 +235,8 @@ resources:
           name: exchange-db-${env.shortDeploymentId}
           labels:
             app.kubernetes.io/instance: exchange-db-${env.shortDeploymentId}
+            pellera.io/database-engine: postgresql
+            pellera.io/discovery: enabled
         spec:
           className: ${input.databaseSize}
           imageName: ${input.dbImage}
